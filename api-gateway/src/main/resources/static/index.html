@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FreshMart — Tổng quan</title>
+  <style>
+    :root {
+      --bg: #f3f6f2;
+      --card: #ffffff;
+      --ink: #1c2b22;
+      --muted: #5b6b62;
+      --line: #d7e3d8;
+      --accent: #2f7d4a;
+      --warn: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    header {
+      background: linear-gradient(135deg, #1f5b38, #3a9a5a);
+      color: white;
+      padding: 28px 32px 24px;
+    }
+    header h1 { margin: 0 0 6px; font-size: 28px; }
+    header p { margin: 0; opacity: 0.9; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: -36px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(28, 43, 34, 0.06);
+    }
+    .kpi .label { color: var(--muted); font-size: 13px; }
+    .kpi .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    th { color: var(--muted); font-weight: 600; }
+    .note { margin-top: 14px; color: var(--muted); font-size: 13px; }
+    .err { color: #9f1239; background: #ffe4e6; padding: 12px; border-radius: 10px; }
+    .pill { display: inline-block; background: #ecfdf3; color: var(--accent); padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+    .low { color: var(--warn); font-weight: 600; }
+    @media (max-width: 800px) {
+      .kpis, .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1 id="shop">FreshMart</h1>
+      <p>Một màn hình tổng quan — một lần tải — một địa chỉ duy nhất (<code>localhost:8080</code>)</p>
+    </div>
+  </header>
+  <div class="wrap">
+    <div id="root">Đang tải dữ liệu từ dashboard-service...</div>
+  </div>
+  <script>
+    const fmt = (n) => new Intl.NumberFormat("vi-VN").format(n || 0);
+
+    async function load() {
+      const root = document.getElementById("root");
+      try {
+        const res = await fetch("/api/dashboard/overview");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        document.getElementById("shop").textContent = data.shopName || "FreshMart";
+        root.innerHTML = `
+          <div class="kpis">
+            <div class="card kpi"><div class="label">Khách hàng</div><div class="value">${data.customerCount}</div></div>
+            <div class="card kpi"><div class="label">Sản phẩm</div><div class="value">${data.productCount}</div></div>
+            <div class="card kpi"><div class="label">Đơn hàng</div><div class="value">${data.orderCount}</div></div>
+            <div class="card kpi"><div class="label">Doanh thu (${data.currency})</div><div class="value">${fmt(data.revenue)}</div></div>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <h3>Đơn gần đây</h3>
+              <table>
+                <thead><tr><th>KH</th><th>Sản phẩm</th><th>SL</th><th>Tổng</th></tr></thead>
+                <tbody>
+                  ${(data.recentOrders || []).map(o => `
+                    <tr>
+                      <td>${o.customerName}</td>
+                      <td>${o.productName}</td>
+                      <td>${o.quantity}</td>
+                      <td>${fmt(o.totalAmount)}</td>
+                    </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>Sắp hết hàng</h3>
+              <table>
+                <thead><tr><th>Sản phẩm</th><th>Tồn</th></tr></thead>
+                <tbody>
+                  ${(data.lowStock || []).map(p => `
+                    <tr>
+                      <td>${p.name}<br/><span class="pill">${p.category}</span></td>
+                      <td class="low">${p.stock}</td>
+                    </tr>`).join("") || "<tr><td colspan='2'>Không có</td></tr>"}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="note">
+            Thuế cấu hình tập trung (Config Server): ${(data.taxRate * 100).toFixed(0)}%.
+            Dashboard instance: ${data.instanceNote}.
+            Trình duyệt chỉ gọi <b>một</b> API qua API Gateway; dashboard-service tự Feign tới user / product / order.
+          </p>
+        `;
+      } catch (e) {
+        root.innerHTML = `<div class="err">Không tải được tổng quan: ${e.message}. Hãy chắc các service đã lên Eureka.</div>`;
+      }
+    }
+    load();
+  </script>
+</body>
+</html>
